@@ -6,7 +6,7 @@ set -e
 BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 IMAGES_UPLOAD_PATH="$BASE_PATH/uploads"
 TEMP_PATH="$BASE_PATH/temp"
-LAST_ID_FILE="$BASE_PATH/.next"
+LOG_FILE="$BASE_PATH/journal.log"
 
 MAX_IMAGE_SIZE=2500
 MAX_THUMBNAIL_SIZE=800
@@ -14,21 +14,29 @@ MAX_THUMBNAIL_SIZE=800
 BOT_TOKEN=$BOT_TOKEN
 CHAT_ID=$CHAT_ID
 
-
-
 TELEGRAM_SEND_PHOTO="https://api.telegram.org/bot$BOT_TOKEN/sendPhoto?chat_id=$CHAT_ID"
 TELEGRAM_SEND_DOCUMENT="https://api.telegram.org/bot$BOT_TOKEN/sendDocument?chat_id=$CHAT_ID"
 
 if [[ ! -e "$IMAGES_UPLOAD_PATH" ]]; then mkdir "$IMAGES_UPLOAD_PATH"; fi
 if [[ ! -e "$TEMP_PATH" ]]; then mkdir "$TEMP_PATH"; fi
-if [[ ! -e "$LAST_ID_FILE" ]]; then echo 0 > "$LAST_ID_FILE"; fi
+
+
+current_timestamp() {
+  echo $(date +'%m/%d/%Y %H:%M:%S')
+}
+
+
+log() {
+  local text="$1"
+  echo "[$(current_timestamp)] $text" >> $LOG_FILE
+}
 
 
 get_random_image() {
   local random_image_path
   local random_image
-	random_image_path="$IMAGES_UPLOAD_PATH/$( find "$IMAGES_UPLOAD_PATH" \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \)  | shuf -n 1 )"
-	random_image="$( echo "$random_image_path" | rev | cut -d'/' -f 1 | rev )"
+	random_image_path="$IMAGES_UPLOAD_PATH/$(find "$IMAGES_UPLOAD_PATH" \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \)  | shuf -n 1)"
+	random_image="$(echo "$random_image_path" | rev | cut -d'/' -f 1 | rev)"
 	echo "$random_image"
 }
 
@@ -79,12 +87,13 @@ processing_image() {
 
 main() {
   image="$(get_random_image)"
-  echo "$image"
   if [[ -z $image ]]; then
-	  echo "Image folder is empty"
+	  log "Image folder is empty."
   fi
 
   if [[ -n $image ]]; then
+    log "Found image on path $image"
+    log "Processing and sending the image."
     processing_image "$image"
     send_photo "$TEMP_PATH/thumb_$image"
     send_document "$TEMP_PATH/$image"
@@ -92,6 +101,7 @@ main() {
     rm "$IMAGES_UPLOAD_PATH/$image"
     rm "$TEMP_PATH/$image"
     rm "$TEMP_PATH/thumb_$image"
+    log "Completed."
   fi
 }
 
