@@ -2,41 +2,46 @@
 
 set -e
 
-BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-IMAGES_ORIGINAL_PATH="$BASE_PATH/original"
-IMAGES_PROCESSED_PATH="$BASE_PATH/images"
-THUMBNAILS_PATH="$BASE_PATH/thumbnails"
 
-MAX_IMAGE_RESOLUTION=$((2500*2500))
-MAX_THUMBNAIL_RESOLUTION=$((800*800))
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+IMAGES_UPLOAD_PATH="$BASE_PATH/uploads"
+TEMP_PATH="$BASE_PATH/temp"
+LAST_ID_FILE="$BASE_PATH/.next"
+
+MAX_IMAGE_SIZE=2500
+MAX_THUMBNAIL_SIZE=800
 
 BOT_TOKEN=$BOT_TOKEN
 CHAT_ID=$CHAT_ID
 
+
+
 TELEGRAM_SEND_PHOTO="https://api.telegram.org/bot$BOT_TOKEN/sendPhoto?chat_id=$CHAT_ID"
 TELEGRAM_SEND_DOCUMENT="https://api.telegram.org/bot$BOT_TOKEN/sendDocument?chat_id=$CHAT_ID"
 
-if [[ ! -e "BASE_PATH" ]]; then mkdir "BASE_PATH"; fi
-if [[ ! -e "IMAGES_PROCESSED_PATH" ]]; then mkdir "IMAGES_PROCESSED_PATH"; fi
-if [[ ! -e "IMAGES_ORIGINAL_PATH" ]]; then mkdir "IMAGES_ORIGINAL_PATH"; fi
+if [[ ! -e "$IMAGES_UPLOAD_PATH" ]]; then mkdir "$IMAGES_UPLOAD_PATH"; fi
+if [[ ! -e "$TEMP_PATH" ]]; then mkdir "$TEMP_PATH"; fi
+if [[ ! -e "$LAST_ID_FILE" ]]; then echo 0 > "$LAST_ID_FILE"; fi
+
 
 get_random_image() {
-  local full_path
-  local image
-	full_path="$IMAGES_PROCESSED_PATH/$( ls $IMAGES_PROCESSED_PATH | shuf -n 1 )"
-	image="$( echo "$full_path" | rev | cut -d'/' -f 1 | rev )"
-	echo "$image"
+  local random_image_path
+  local random_image
+	random_image_path="$IMAGES_UPLOAD_PATH/$( find "$IMAGES_UPLOAD_PATH" \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \)  | shuf -n 1 )"
+	random_image="$( echo "$random_image_path" | rev | cut -d'/' -f 1 | rev )"
+	echo "$random_image"
 }
 
 
-calculate_resolution() {
+get_largest_size() {
 	local image="$1"
-	local size_h
-	local size_w
-	size_h=$(identify -format "%h" "$image")
-	size_w=$(identify -format "%w" "$image")
-	pixel_count=$((size_h * size_w))
-	echo $pixel_count
+	local width
+	local height
+	local largest_size
+  width=$(vipsheader -f width "$image")
+  height=$(vipsheader -f height "$image")
+  largest_size=$((width > height ? width : height))
+	echo $largest_size
 }
 
 
@@ -51,30 +56,25 @@ send_document() {
 	curl --silent -F document=@"$file" "$TELEGRAM_SEND_DOCUMENT" > /dev/null
 }
 
-processing_images() {
-  for image in "$IMAGES_ORIGINAL_PATH"/*; do
-    if [[ $image == "$IMAGES_ORIGINAL_PATH/*" ]]; then
-      echo "None new images"
-      break
-    fi
 
-    image="$(echo "$image" | rev | cut -d'/' -f 1 | rev)"
+processing_image() {
+  local image="$1"
+  local largest_size
+  largest_size=$(get_largest_size "$IMAGES_UPLOAD_PATH/$image")
 
-    cp "$IMAGES_ORIGINAL_PATH/$image" "$IMAGES_PROCESSED_PATH"
-    cp "$IMAGES_ORIGINAL_PATH/$image" "$THUMBNAILS_PATH"
+  if [[  $largest_size -gt $MAX_IMAGE_SIZE ]]; then
+    factor=$(echo "scale=10; $MAX_IMAGE_SIZE / $largest_size" | bc | awk '{printf "%f", $0}' | sed 's/\./,/g')
+    vips resize "$IMAGES_UPLOAD_PATH/$image" "$TEMP_PATH/$image" "$factor"
+  else
+    cp "$IMAGES_UPLOAD_PATH/$image" "$TEMP_PATH/$image"
+  fi
 
-    image_resolution=$(calculate_resolution "$IMAGES_ORIGINAL_PATH/$image")
-
-    if [[ $image_resolution -gt $MAX_IMAGE_RESOLUTION ]]; then
-      convert "$IMAGES_PROCESSED_PATH/$image" -resize $MAX_IMAGE_RESOLUTION@ "$IMAGES_PROCESSED_PATH/$image"
-    fi
-
-    if [[ $image_resolution -gt $MAX_THUMBNAIL_RESOLUTION ]]; then
-      convert "$THUMBNAILS_PATH/$image" -resize $MAX_THUMBNAIL_RESOLUTION@ "$THUMBNAILS_PATH/$image"
-    fi
-
-    rm "$IMAGES_ORIGINAL_PATH/$image"
-  done
+  if [[ $largest_size -gt $MAX_THUMBNAIL_SIZE ]]; then
+    factor=$(echo "scale=10; $MAX_THUMBNAIL_SIZE / $largest_size" | bc | awk '{printf "%f", $0}' | sed 's/\./,/g')
+    vips resize "$IMAGES_UPLOAD_PATH/$image" "$TEMP_PATH/thumb_$image" "$factor"
+  else
+    cp "$IMAGES_UPLOAD_PATH/$image" "$TEMP_PATH/$image"
+  fi
 }
 
 main() {
@@ -85,14 +85,14 @@ main() {
   fi
 
   if [[ -n $image ]]; then
-    send_photo "$THUMBNAILS_PATH/$image"
-    send_document "$IMAGES_PROCESSED_PATH/$image"
+    processing_image "$image"
+    send_photo "$TEMP_PATH/thumb_$image"
+    send_document "$TEMP_PATH/$image"
 
-    rm "$IMAGES_PROCESSED_PATH/$image"
-    rm "$THUMBNAILS_PATH/$image"
+    rm "$IMAGES_UPLOAD_PATH/$image"
+    rm "$TEMP_PATH/$image"
+    rm "$TEMP_PATH/thumb_$image"
   fi
-
-  processing_images
 }
 
 main
