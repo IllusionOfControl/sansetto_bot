@@ -6,7 +6,8 @@ set -e
 BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 IMAGES_UPLOAD_PATH="$BASE_PATH/uploads"
 TEMP_PATH="$BASE_PATH/temp"
-LOG_FILE="$BASE_PATH/journal.log"
+LOG_FILE_PATH="$BASE_PATH/journal.log"
+LAST_ID_FILE_PATH="$BASE_PATH/.last_id"
 
 MAX_IMAGE_SIZE=2500
 MAX_THUMBNAIL_SIZE=800
@@ -19,6 +20,14 @@ TELEGRAM_SEND_DOCUMENT="https://api.telegram.org/bot$BOT_TOKEN/sendDocument?chat
 
 if [[ ! -e "$IMAGES_UPLOAD_PATH" ]]; then mkdir "$IMAGES_UPLOAD_PATH"; fi
 if [[ ! -e "$TEMP_PATH" ]]; then mkdir "$TEMP_PATH"; fi
+if [[ ! -e "$LAST_ID_FILE_PATH" ]]; then echo 0 > "$IMAGES_ORIGINAL_PATH"; fi
+
+
+get_current_id() {
+	local id=$(< $LAST_ID_FILE_PATH)
+  echo $((id + 1)) > "$IMAGES_ORIGINAL_PATH"
+  echo id
+}
 
 
 current_timestamp() {
@@ -92,8 +101,15 @@ main() {
   fi
 
   if [[ -n $image ]]; then
+    local new_filename="sansetto_$get_current_id.jpg"
     log "Found image on path $image"
+    log "Renaming image to $new_filename"
+    
+    mv $image $new_filename
+    image=$new_filename
+
     log "Processing and sending the image."
+
     processing_image "$image"
     send_photo "$TEMP_PATH/thumb_$image"
     send_document "$TEMP_PATH/$image"
