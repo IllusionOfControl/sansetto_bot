@@ -18,7 +18,7 @@ CHAT_ID=$CHAT_ID
 
 if [[ ! -e "$IMAGES_UPLOAD_PATH" ]]; then mkdir "$IMAGES_UPLOAD_PATH"; fi
 if [[ ! -e "$TEMP_PATH" ]]; then mkdir "$TEMP_PATH"; fi
-if [[ ! -e "$LAST_ID_FILE_PATH" ]]; then echo 0 > "$IMAGES_ORIGINAL_PATH"; fi
+if [[ ! -e "$LAST_ID_FILE_PATH" ]]; then echo 0 > "$LAST_ID_FILE_PATH"; fi
 
 
 env_up() {
