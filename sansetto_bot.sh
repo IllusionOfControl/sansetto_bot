@@ -3,7 +3,7 @@
 set -e
 
 
-BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+BASE_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd -P)"
 IMAGES_UPLOAD_PATH="$BASE_PATH/uploads"
 TEMP_PATH="$BASE_PATH/temp"
 LOG_FILE_PATH="$BASE_PATH/journal.log"
@@ -114,9 +114,12 @@ main() {
     send_photo "$TEMP_PATH/thumb_$image"
     send_document "$TEMP_PATH/$image"
 
+    log "Uploaded in Telegram."
+
     rm "$IMAGES_UPLOAD_PATH/$image"
     rm "$TEMP_PATH/$image"
     rm "$TEMP_PATH/thumb_$image"
+
     log "Completed."
   fi
 }
