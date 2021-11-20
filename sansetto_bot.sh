@@ -22,7 +22,7 @@ if [[ ! -e "$LAST_ID_FILE_PATH" ]]; then echo 0 > "$LAST_ID_FILE_PATH"; fi
 
 
 env_up() {
-  if [ -f .env ] then
+  if [[ -e .env ]]; then
     export $(cat .env | sed 's/#.*//g' | xargs)
   fi
 }
@@ -126,7 +126,7 @@ main() {
     log "Found image on path $image"
     log "Renaming image to $new_filename"
     
-    mv $image $new_filename
+    mv "$IMAGES_UPLOAD_PATH/$image" "$IMAGES_UPLOAD_PATH/$new_filename"
     image=$new_filename
 
     log "Processing and sending the image."
