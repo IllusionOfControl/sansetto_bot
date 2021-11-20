@@ -15,12 +15,28 @@ MAX_THUMBNAIL_SIZE=800
 BOT_TOKEN=$BOT_TOKEN
 CHAT_ID=$CHAT_ID
 
-TELEGRAM_SEND_PHOTO="https://api.telegram.org/bot$BOT_TOKEN/sendPhoto?chat_id=$CHAT_ID"
-TELEGRAM_SEND_DOCUMENT="https://api.telegram.org/bot$BOT_TOKEN/sendDocument?chat_id=$CHAT_ID"
 
 if [[ ! -e "$IMAGES_UPLOAD_PATH" ]]; then mkdir "$IMAGES_UPLOAD_PATH"; fi
 if [[ ! -e "$TEMP_PATH" ]]; then mkdir "$TEMP_PATH"; fi
 if [[ ! -e "$LAST_ID_FILE_PATH" ]]; then echo 0 > "$IMAGES_ORIGINAL_PATH"; fi
+
+
+env_up() {
+  if [ -f .env ] then
+    export $(cat .env | sed 's/#.*//g' | xargs)
+  fi
+}
+
+check_env() {
+  if [[ -z $BOT_TOKEN && -z $CHAT_ID ]]; then
+	  log "Please fill BOT_TOKEN and CHAT_ID in env variables in .env file."
+    exit 1
+  fi
+  if ! command -v vips &> /dev/null; then
+	  log "Required libVips but it's not installed. Aborting."; exit 1;
+    exit 1
+  fi
+}
 
 
 get_current_id() {
@@ -37,7 +53,7 @@ current_timestamp() {
 
 log() {
   local text="$1"
-  echo "[$(current_timestamp)] $text" >> $LOG_FILE
+  echo "[$(current_timestamp)] $text" | tee $LOG_FILE_PATH
 }
 
 
@@ -64,13 +80,15 @@ get_largest_size() {
 
 send_photo() {
 	local file="$1"
-	curl --silent -F photo=@"$file" "$TELEGRAM_SEND_PHOTO" > /dev/null
+  local uri="https://api.telegram.org/bot$BOT_TOKEN/sendPhoto?chat_id=$CHAT_ID"
+	curl --silent -F photo=@"$file" "$uri" > /dev/null
 }
 
 
 send_document() {
 	local file="$1"
-	curl --silent -F document=@"$file" "$TELEGRAM_SEND_DOCUMENT" > /dev/null
+  local uri="https://api.telegram.org/bot$BOT_TOKEN/sendDocument?chat_id=$CHAT_ID"
+	curl --silent -F document=@"$file" "$uri" > /dev/null
 }
 
 
@@ -79,7 +97,7 @@ processing_image() {
   local largest_size
   largest_size=$(get_largest_size "$IMAGES_UPLOAD_PATH/$image")
 
-  if [[  $largest_size -gt $MAX_IMAGE_SIZE ]]; then
+  if [[ $largest_size -gt $MAX_IMAGE_SIZE ]]; then
     factor=$(echo "scale=10; $MAX_IMAGE_SIZE / $largest_size" | bc | awk '{printf "%f", $0}' | sed 's/\./,/g')
     vips resize "$IMAGES_UPLOAD_PATH/$image" "$TEMP_PATH/$image" "$factor"
   else
@@ -95,6 +113,9 @@ processing_image() {
 }
 
 main() {
+  env_up
+  check_env
+
   image="$(get_random_image)"
   if [[ -z $image ]]; then
 	  log "Image folder is empty."
