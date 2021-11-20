@@ -42,7 +42,7 @@ check_env() {
 get_current_id() {
 	local id=$(< $LAST_ID_FILE_PATH)
   echo $((id + 1)) > "$IMAGES_ORIGINAL_PATH"
-  echo id
+  echo $id
 }
 
 
