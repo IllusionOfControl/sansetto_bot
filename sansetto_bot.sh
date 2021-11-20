@@ -122,7 +122,7 @@ main() {
   fi
 
   if [[ -n $image ]]; then
-    local new_filename="sansetto_$get_current_id.jpg"
+    local new_filename="sansetto_$(get_current_id).jpg"
     log "Found image on path $image"
     log "Renaming image to $new_filename"
     
